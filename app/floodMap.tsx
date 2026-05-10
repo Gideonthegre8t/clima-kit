@@ -1,16 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
-
-const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import("react-leaflet").then((m) => m.TileLayer), { ssr: false });
-const Marker = dynamic(() => import("react-leaflet").then((m) => m.Marker), { ssr: false });
-const Circle = dynamic(() => import("react-leaflet").then((m) => m.Circle), { ssr: false });
-const Popup = dynamic(() => import("react-leaflet").then((m) => m.Popup), { ssr: false });
-const Polyline = dynamic(() => import("react-leaflet").then((m) => m.Polyline), { ssr: false });
-const CircleMarker = dynamic(() => import("react-leaflet").then((m) => m.CircleMarker), { ssr: false });
 
 type Zone = {
   lat: number;
@@ -52,22 +43,44 @@ function getRadius(risk: number) {
   return 550;
 }
 
-export default function FloodMap({ center, zones = [], destination = null }: Props) {
+export default function FloodMap({
+  center,
+  zones = [],
+  destination = null,
+}: Props) {
   const [mounted, setMounted] = useState(false);
+  const [leaflet, setLeaflet] = useState<any>(null);
   const [hoveredZone, setHoveredZone] = useState<Zone | null>(null);
+
+  useEffect(() => {
+    async function loadLeaflet() {
+      const mod = await import("react-leaflet");
+      setLeaflet(mod);
+      setMounted(true);
+    }
+
+    loadLeaflet();
+  }, []);
+
+  if (!mounted || !leaflet) {
+    return (
+      <div className="h-full w-full rounded-[2rem] bg-white/10 animate-pulse" />
+    );
+  }
+
+  const {
+    MapContainer,
+    TileLayer,
+    Circle,
+    CircleMarker,
+    Popup,
+    Polyline,
+  } = leaflet;
 
   const safeZones = Array.isArray(zones) ? zones : [];
   const severeZones = safeZones.filter((z) => z.risk > 80).length;
   const elevatedZones = safeZones.filter((z) => z.risk > 60).length;
   const highestRiskZone = [...safeZones].sort((a, b) => b.risk - a.risk)[0];
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return <div className="h-full w-full rounded-[2rem] bg-white/10 animate-pulse" />;
-  }
 
   const routeLine: [number, number][] | null = destination
     ? [center, [destination.lat, destination.lon]]
@@ -93,7 +106,9 @@ export default function FloodMap({ center, zones = [], destination = null }: Pro
         <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-300/80">
           Flood Intelligence
         </p>
+
         <h3 className="mt-1 text-base font-black">Lagos Risk Map</h3>
+
         <p className="mt-1 text-xs text-white/50">
           {safeZones.length} monitored zones • {elevatedZones} elevated
         </p>
@@ -103,7 +118,9 @@ export default function FloodMap({ center, zones = [], destination = null }: Pro
             <p className="text-[10px] uppercase tracking-[0.2em] text-red-200/60">
               Highest Alert
             </p>
+
             <p className="mt-1 text-sm font-bold">{highestRiskZone.name}</p>
+
             <p className="text-xs text-white/50">
               Risk score {highestRiskZone.risk}/100
             </p>
@@ -111,13 +128,14 @@ export default function FloodMap({ center, zones = [], destination = null }: Pro
         )}
       </div>
 
-      <div className="absolute right-4 top-4 z-[500] rounded-2xl border border-white/10 bg-slate-950/90 px-4 py-3 text-white backdrop-blur-xl shadow-2xl">
+      <div className="absolute right-3 top-10 z-[500] rounded-2xl border border-white/10 bg-slate-950/90 px-3 py-2 text-white backdrop-blur-xl shadow-2xl md:right-4 md:top-4 md:px-4 md:py-3">
         <p className="text-[10px] uppercase tracking-[0.25em] text-white/40">
           Signal
         </p>
+
         <div className="mt-2 flex items-center gap-2">
           <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
-          <span className="text-sm font-bold">Live Monitoring</span>
+          <span className="text-xs font-bold md:text-sm">Live</span>
         </div>
       </div>
 
@@ -125,6 +143,7 @@ export default function FloodMap({ center, zones = [], destination = null }: Pro
         <p className="mb-3 text-[10px] uppercase tracking-[0.25em] text-white/40">
           Risk Scale
         </p>
+
         <div className="space-y-2 text-xs">
           <Legend color="bg-red-500" label="Severe" />
           <Legend color="bg-orange-500" label="Rising" />
@@ -137,54 +156,62 @@ export default function FloodMap({ center, zones = [], destination = null }: Pro
         <p className="text-[10px] uppercase tracking-[0.25em] text-red-200/60">
           Severe Zones
         </p>
+
         <p className="mt-1 text-2xl font-black">{severeZones}</p>
       </div>
 
-      <MapContainer center={center} zoom={10} scrollWheelZoom className="h-full w-full" zoomControl>
+      <MapContainer
+        key={`${center[0]}-${center[1]}`}
+        center={center}
+        zoom={10}
+        scrollWheelZoom
+        className="h-full w-full"
+        zoomControl
+      >
         <TileLayer
           attribution='&copy; OpenStreetMap contributors &copy; CARTO'
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         />
 
         <CircleMarker
-  center={center}
-  radius={9}
-  pathOptions={{
-    color: "#ffffff",
-    fillColor: "#38bdf8",
-    fillOpacity: 1,
-    weight: 3,
-    opacity: 1,
-  }}
->
-  <Popup>
-    <div className="space-y-1 text-sm">
-      <strong>You are here</strong>
-      <p>Current detected position</p>
-    </div>
-  </Popup>
-</CircleMarker>
+          center={center}
+          radius={9}
+          pathOptions={{
+            color: "#ffffff",
+            fillColor: "#38bdf8",
+            fillOpacity: 1,
+            weight: 3,
+            opacity: 1,
+          }}
+        >
+          <Popup>
+            <div className="space-y-1 text-sm">
+              <strong>You are here</strong>
+              <p>Current detected position</p>
+            </div>
+          </Popup>
+        </CircleMarker>
 
-       {destination && (
-  <CircleMarker
-    center={[destination.lat, destination.lon]}
-    radius={9}
-    pathOptions={{
-      color: "#ffffff",
-      fillColor: "#818cf8",
-      fillOpacity: 1,
-      weight: 3,
-      opacity: 1,
-    }}
-  >
-    <Popup>
-      <div className="space-y-1 text-sm">
-        <strong>{destination.name}</strong>
-        <p>Selected destination</p>
-      </div>
-    </Popup>
-  </CircleMarker>
-)}
+        {destination && (
+          <CircleMarker
+            center={[destination.lat, destination.lon]}
+            radius={9}
+            pathOptions={{
+              color: "#ffffff",
+              fillColor: "#818cf8",
+              fillOpacity: 1,
+              weight: 3,
+              opacity: 1,
+            }}
+          >
+            <Popup>
+              <div className="space-y-1 text-sm">
+                <strong>{destination.name}</strong>
+                <p>Selected destination</p>
+              </div>
+            </Popup>
+          </CircleMarker>
+        )}
 
         {routeLine && (
           <Polyline
@@ -236,8 +263,11 @@ export default function FloodMap({ center, zones = [], destination = null }: Pro
                 <Popup>
                   <div className="space-y-2 text-sm">
                     <strong>{zone.name}</strong>
+
                     <p>{getRiskLabel(zone.risk)}</p>
+
                     <p>Risk Score: {zone.risk}/100</p>
+
                     <p>
                       {zone.risk > 70
                         ? "Avoid this area during rainfall or rising water conditions."

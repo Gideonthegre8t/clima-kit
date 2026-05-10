@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import FloodMap from "./floodMap";
 import ReportFlood from "./components/ReportFlood";
+import Image from "next/image";
 
 type WeatherData = {
   temp: number;
@@ -103,16 +103,37 @@ const [reports, setReports] = useState<FloodReport[]>([]);
 
 async function fetchWeather(lat: number, lon: number) {
   try {
-    const res = await fetch(`/api/weather?lat=${lat}&lon=${lon}`);
-
-    if (!res.ok) {
-      throw new Error("Failed to fetch weather");
-    }
+    const res = await fetch(`/api/weather?lat=${lat}&lon=${lon}`, {
+      cache: "no-store",
+    });
 
     const json = await res.json();
+
+    if (!res.ok) {
+      console.log("Weather API error:", json);
+
+      setData({
+        temp: json.temp ?? 0,
+        rain: json.rain ?? 0,
+        recentRain: json.recentRain ?? 0,
+        wind: json.wind ?? 0,
+        location: json.location ?? "Your Location",
+      });
+
+      return;
+    }
+
     setData(json);
-  } catch (err: any) {
-    setError(err.message);
+  } catch (err) {
+    console.log("Weather fetch failed:", err);
+
+    setData({
+      temp: 0,
+      rain: 0,
+      recentRain: 0,
+      wind: 0,
+      location: "Your Location",
+    });
   }
 }
 
@@ -314,45 +335,100 @@ const lastCommunityReport =
   return (
     <main className="min-h-screen overflow-hidden bg-[#020617] text-white">
     
-    {/* LIVE RAIN ALERT */}
-    {data.rain > 0 && (
-      <div className="sticky top-0 z-[999] border-b border-blue-400/20 bg-blue-500/10 px-4 py-3 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div>
-            <p className="text-sm font-bold text-blue-100">
-              🌧 Rain detected in your area
-            </p>
+{/* LIVE WEATHER ALERT */}
+{(data.rain >= 1.5 || data.recentRain >= 4) && (
+  <div className="sticky top-0 z-[999] border-b border-cyan-400/20 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-slate-950 px-4 py-3 backdrop-blur-xl">
 
-            <p className="text-xs text-blue-200/70">
-              Roads may become slippery or waterlogged.
-            </p>
-          </div>
+    <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
 
-          <div className="rounded-full bg-blue-400/20 px-3 py-1 text-xs font-semibold text-blue-100">
-            LIVE
-          </div>
+      <div className="flex items-center gap-4">
+
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-500/15 text-xl">
+          🌧
+        </div>
+
+        <div>
+          <p className="text-sm font-bold text-cyan-50">
+            {data.rain >= 1.5
+              ? "Rain detected nearby"
+              : "Recent rainfall detected"}
+          </p>
+
+          <p className="text-xs text-cyan-100/60">
+            {data.rain >= 1.5
+              ? "Roads may become slippery or waterlogged."
+              : "Some roads may still be wet or waterlogged."}
+          </p>
         </div>
       </div>
-    )}
 
+      <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-100">
+        LIVE
+      </div>
+
+    </div>
+  </div>
+)}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_35%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.14),transparent_35%),radial-gradient(circle_at_bottom,rgba(16,185,129,0.12),transparent_40%)]" />
 
       <div className="relative mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">
-        <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/70">
-              Climate Resilience System
-            </p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight md:text-5xl">
-              CLIMAKIT
-            </h1>
-          </div>
+        <header className="mb-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 backdrop-blur-xl">
-            <p className="text-xs text-white/40">Current Area</p>
-            <p className="font-semibold">{data.location || "Your Location"}</p>
-          </div>
-        </header>
+  {/* LEFT */}
+  <div className="flex items-center gap-5">
+
+    <div className="relative">
+      <div className="absolute inset-0 rounded-3xl bg-cyan-400/20 blur-2xl" />
+
+      <Image
+        src="/logo.png"
+        alt="ClimaKit Logo"
+        width={90}
+        height={90}
+        className="relative rounded-3xl object-contain"
+      />
+    </div>
+
+    <div>
+      <p className="text-[11px] uppercase tracking-[0.45em] text-cyan-300/60">
+        Climate Resilience System
+      </p>
+
+      <h1 className="mt-2 hidden text-2xl font-black tracking-tight md:flex md:text-3xl">
+        CLIMAKIT
+      </h1>
+
+      <p className="mt-2 max-w-md text-sm text-white/50">
+        AI-powered flood intelligence and community climate monitoring.
+      </p>
+    </div>
+  </div>
+
+  {/* RIGHT */}
+  <div className="flex items-center gap-4">
+
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 backdrop-blur-xl">
+      <p className="text-xs uppercase tracking-[0.2em] text-white/35">
+        Current Area
+      </p>
+
+      <p className="mt-1 text-lg font-bold">
+        {data.location || "Your Location"}
+      </p>
+    </div>
+
+    <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3">
+      <p className="text-xs uppercase tracking-[0.2em] text-cyan-100/60">
+        System
+      </p>
+
+      <p className="mt-1 text-sm font-bold text-cyan-200">
+        LIVE
+      </p>
+    </div>
+
+  </div>
+</header>
 
         <section className="relative overflow-hidden rounded-[2.5rem] border border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 via-cyan-500/5 to-slate-950 p-8 shadow-2xl shadow-emerald-950/30">
 
